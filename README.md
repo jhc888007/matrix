@@ -1,4 +1,4 @@
-Python:
+﻿Python:
     python setup.py install
     python test_writer.py output.idx output.data 10000 < test_input.txt
     python test_reader.py output.idx output.data < test_input.txt
