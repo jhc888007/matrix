@@ -18,6 +18,8 @@ using namespace std;
 class MatrixReader {
 public:
     MatrixReader() {
+        _max_idx = 0;
+        _max_size = 0;
         _vec.reserve(MAX_SIZE);
     }
     void Open(const char *idx_file, const char *data_file) {
@@ -82,7 +84,36 @@ public:
         }
         return &_vec;
     }
-
+    vector<MatrixBody> *GetDataRev(uint64_t offset, uint64_t size, uint64_t head_size, uint64_t tail_size) {
+        _vec.resize(0);
+        if (offset + head_size + tail_size > _max_size || _data_fp < 0) {
+            return &_vec;
+        }
+        if (head_size + tail_size > MAX_SIZE) {
+            head_size = MAX_SIZE/2;
+            tail_size = MAX_SIZE/2;
+        }
+        if (head_size + tail_size > size) {
+            head_size = size/2;
+            tail_size = size/2;
+        }
+        _vec.resize(head_size + tail_size);
+        if (pread(_data_fp, (void *)&_vec[0], head_size*sizeof(MatrixBody),
+            sizeof(MatrixHeader)+offset*sizeof(MatrixBody)) < 0) {
+            _vec.resize(0);
+        }
+        if (pread(_data_fp, (void *)&_vec[head_size], tail_size*sizeof(MatrixBody),
+            sizeof(MatrixHeader)+(offset+size-tail_size)*sizeof(MatrixBody)) < 0) {
+            _vec.resize(0);
+        }
+        return &_vec;
+    }
+    uint64_t GetMaxIndex() {
+        return _max_idx;
+    }
+    uint64_t GetMaxData() {
+        return _max_size;
+    }
 private:
     int _idx_fp, _data_fp;
     uint64_t _max_size;

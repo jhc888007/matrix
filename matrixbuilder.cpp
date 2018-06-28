@@ -167,13 +167,137 @@ static PyObject *reader_get(reader *self, PyObject *args) {
     for (vector<MatrixBody>::iterator iter = vec->begin();iter != vec->end();iter++) {
         PyObject *dict = PyDict_New();
         PyObject *rid = Py_BuildValue("i", iter->rid);
-        //PyTuple_SET_ITEM(tuple, 0, rid);
         PyMapping_SetItemString(dict, "id", rid);
         PyObject *value = Py_BuildValue("i", int(iter->value));
-        //PyTuple_SET_ITEM(tuple, 1, value);
         PyMapping_SetItemString(dict, "score", value);
-        //PyList_SET_ITEM(list, count, tuple);
         PyList_SET_ITEM(list, count, dict);
+        //Py_DECREF(dict);
+        Py_DECREF(rid);
+        Py_DECREF(value);
+        count++;
+    }
+    for (count = 0;count < length;count++) {
+        PyObject *item = PyList_GET_ITEM(list, count);
+        if (item == NULL) {
+            PyList_SET_ITEM(list, count, Py_None);
+        }
+    }
+    
+    return list;
+}
+
+static PyObject *reader_get_rev(reader *self, PyObject *args) {
+    int uid, head_len, tail_len;
+    if (!PyArg_ParseTuple(args, "iii", &uid, &head_len, &tail_len)) {
+        return PyList_New(0);
+    }
+    IndexBody idx = self->matrix_reader->GetIndex((uint32_t)uid);
+    uint64_t offset = idx.offset;
+    uint64_t size = idx.count;
+    uint64_t get_size = (uint64_t)(head_len + tail_len);
+    if (size == 0 || get_size == 0) {
+        return PyList_New(0);
+    }
+    vector<MatrixBody> *vec = NULL;
+    if (size <= get_size ) {
+        vec = self->matrix_reader->GetData(offset, size);
+    } else {
+        vec = self->matrix_reader->GetDataRev(offset, size,
+            head_len, tail_len);
+    }
+    int count = 0,length = vec->size();
+    PyObject *list = PyList_New(length);
+    if (list == NULL) {
+        return PyList_New(0);
+    }
+    for (vector<MatrixBody>::iterator iter = vec->begin();iter != vec->end();iter++) {
+        PyObject *dict = PyDict_New();
+        PyObject *rid = Py_BuildValue("i", iter->rid);
+        PyMapping_SetItemString(dict, "id", rid);
+        PyObject *value = Py_BuildValue("i", int(iter->value));
+        PyMapping_SetItemString(dict, "score", value);
+        PyList_SET_ITEM(list, count, dict);
+        //Py_DECREF(dict);
+        Py_DECREF(rid);
+        Py_DECREF(value);
+        count++;
+    }
+    for (count = 0;count < length;count++) {
+        PyObject *item = PyList_GET_ITEM(list, count);
+        if (item == NULL) {
+            PyList_SET_ITEM(list, count, Py_None);
+        }
+    }
+    
+    return list;
+}
+
+static PyObject *reader_dict(reader *self, PyObject *args) {
+    int uid, len;
+    if (!PyArg_ParseTuple(args, "ii", &uid, &len)) {
+        return PyDict_New();
+    }
+    IndexBody idx = self->matrix_reader->GetIndex((uint32_t)uid);
+    uint64_t offset = idx.offset;
+    uint64_t size = idx.count;
+    if (size == 0 || len <= 0) {
+        return PyDict_New();
+    }
+    if (size > (uint64_t)len) {
+        size = len;
+    }
+    vector<MatrixBody> *vec = self->matrix_reader->GetData(offset, size);
+    PyObject *dict = PyDict_New();
+    for (vector<MatrixBody>::iterator iter = vec->begin();iter != vec->end();iter++) {
+        PyObject *rid = Py_BuildValue("i", iter->rid);
+        PyObject *value = Py_BuildValue("i", int(iter->value));
+        if (value == NULL || rid == NULL) {
+            continue;
+        }
+        PyDict_SetItem(dict, rid, value);
+        Py_DECREF(rid);
+        Py_DECREF(value);
+    }
+    return dict;
+}
+
+static PyObject *reader_header(reader *self, PyObject *args) {
+    PyObject *list = PyList_New(2);
+
+    uint64_t max_idx = self->matrix_reader->GetMaxIndex();
+    PyObject *p_max_idx = Py_BuildValue("l", max_idx);
+    PyList_SET_ITEM(list, 0, p_max_idx);
+
+    uint64_t max_data = self->matrix_reader->GetMaxData();
+    PyObject *p_max_data = Py_BuildValue("l", max_data);
+    PyList_SET_ITEM(list, 1, p_max_data);
+
+    return list;
+}
+
+static PyObject *reader_list(reader *self, PyObject *args) {
+    int uid, len;
+    if (!PyArg_ParseTuple(args, "ii", &uid, &len)) {
+        return PyList_New(0);
+    }
+    IndexBody idx = self->matrix_reader->GetIndex((uint32_t)uid);
+    uint64_t offset = idx.offset;
+    uint64_t size = idx.count;
+    if (size == 0 || len <= 0) {
+        return PyList_New(0);
+    }
+    if (size > (uint64_t)len) {
+        size = len;
+    }
+    vector<MatrixBody> *vec = self->matrix_reader->GetData(offset, size);
+    int count = 0,length = vec->size();
+    PyObject *list = PyList_New(length);
+    if (list == NULL) {
+        return PyList_New(0);
+    }
+    for (vector<MatrixBody>::iterator iter = vec->begin();iter != vec->end();iter++) {
+        PyObject *rid = Py_BuildValue("i", iter->rid);
+        PyList_SET_ITEM(list, count, rid);
         count++;
     }
     for (count = 0;count < length;count++) {
@@ -187,7 +311,11 @@ static PyObject *reader_get(reader *self, PyObject *args) {
 }
 
 static PyMethodDef reader_methods[] = {
-    {"get", (PyCFunction)reader_get, METH_VARARGS,"append to matrix file"},
+    {"get", (PyCFunction)reader_get, METH_VARARGS,"read idx and data, return id and score"},
+    {"getrev", (PyCFunction)reader_get_rev, METH_VARARGS,"read idx and data, return id and score"},
+    {"header", (PyCFunction)reader_header, METH_VARARGS,"return idx size and data size"},
+    {"lst", (PyCFunction)reader_list, METH_VARARGS,"read idx and data, return id"},
+    {"dic", (PyCFunction)reader_dict, METH_VARARGS,"read idx and data, return id and score"},
     {NULL}  /* Sentinel */
 };
 
